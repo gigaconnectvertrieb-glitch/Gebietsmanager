@@ -87,7 +87,18 @@ button { cursor: pointer; }
 .pill.ok { color: var(--green); border-color: var(--green-dim); }
 .pill.wait { color: var(--blue); border-color: #2d4d78; }
 
-#map { height: 100%; width: 100%; background: #0b1210; }
+.plan-bar {
+  position: absolute; z-index: 500; left: 50%; bottom: 16px; transform: translateX(-50%);
+  display: none; gap: 8px; align-items: center;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px;
+  box-shadow: var(--shadow);
+}
+.plan-bar.show { display: flex; }
+.kind { font-size: 11px; border-radius: 99px; padding: 2px 7px; }
+.kind.efh { color: #9fd7ff; background: #163044; }
+.kind.mfh { color: #f0d59a; background: #3a3018; }
+.map-wrap { position: relative; height: 100%; }
+#map { height: 100%; }
 .leaflet-container { background: #0b1210; font: inherit; }
 
 .detail-body { padding: 0 16px 24px; }

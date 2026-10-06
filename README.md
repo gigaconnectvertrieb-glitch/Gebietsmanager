@@ -16,7 +16,8 @@ Daten liegen im Browser (`localStorage`, Schlüssel `gm.v1`). Demo-Gebiet: Berli
 
 ## Funktionen
 
-- Karte (OpenStreetMap) mit Gebiets-Polygon und Tür-Markern
+- Gebiet planen: Punkte auf der Karte setzen, automatisch per konvexer Hülle verbinden (oder in Klickreihenfolge)
+- Gebäude als Einfamilienhaus (1 Wohneinheit) oder Mehrfamilienhaus (mehrere Wohneinheiten)
 - Gebiet anlegen, GeoJSON oder CSV importieren (`street,house,zip,city,lat,lng`)
 - Mitarbeiter zuweisen und Gebiet annehmen
 - Besuch eintragen: nicht angetroffen, Laufzeit, Termin, kein Interesse, Abschluss

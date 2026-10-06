@@ -8,8 +8,9 @@ import {
   weekKey,
   doorsToGeoJson,
 } from "./field.js";
+import { makeUnits, ringFrom, toPolygon } from "./geo.js";
 
-const KEY = "gm.v1";
+const KEY = "gm.v2";
 const TEAM = [
   { id: "demo-vt-keller", name: "Luca Keller", role: "Vertrieb" },
   { id: "mira-hoffmann", name: "Mira Hoffmann", role: "Vertrieb" },
@@ -44,14 +45,14 @@ function seed() {
           { user_id: "mira-hoffmann", accepted_at: null },
         ],
         doors: [
-          { id: "door-1", street: "Kastanienallee", house: "12", zip: "10435", city: "Berlin", lat: 52.5389, lng: 13.4094, note: "EG links", status: "offen" },
-          { id: "door-2", street: "Kastanienallee", house: "28", zip: "10435", city: "Berlin", lat: 52.5394, lng: 13.4101, note: "", status: "nachlauf" },
-          { id: "door-3", street: "Oderberger Straße", house: "15", zip: "10435", city: "Berlin", lat: 52.5408, lng: 13.4099, note: "3. OG", status: "offen" },
-          { id: "door-4", street: "Schönhauser Allee", house: "70", zip: "10437", city: "Berlin", lat: 52.5419, lng: 13.4122, note: "", status: "nachlauf" },
-          { id: "door-5", street: "Danziger Straße", house: "9", zip: "10435", city: "Berlin", lat: 52.5391, lng: 13.4184, note: "Hinterhaus", status: "offen" },
-          { id: "door-6", street: "Kollwitzstraße", house: "52", zip: "10405", city: "Berlin", lat: 52.5368, lng: 13.4189, note: "", status: "nachlauf" },
-          { id: "door-7", street: "Prenzlauer Allee", house: "33", zip: "10405", city: "Berlin", lat: 52.5349, lng: 13.4198, note: "", status: "offen" },
-          { id: "door-8", street: "Helmholtzstraße", house: "2", zip: "10407", city: "Berlin", lat: 52.5432, lng: 13.4211, note: "Nicht klingeln vor 16 Uhr", status: "offen" },
+          door("door-1", "Kastanienallee", "12", "10435", "Berlin", 52.5389, 13.4094, "EG links", "offen", "mfh", 6),
+          door("door-2", "Kastanienallee", "28", "10435", "Berlin", 52.5394, 13.4101, "", "nachlauf", "mfh", 8),
+          door("door-3", "Oderberger Straße", "15", "10435", "Berlin", 52.5408, 13.4099, "3. OG", "offen", "mfh", 4),
+          door("door-4", "Schönhauser Allee", "70", "10437", "Berlin", 52.5419, 13.4122, "", "nachlauf", "mfh", 10),
+          door("door-5", "Danziger Straße", "9", "10435", "Berlin", 52.5391, 13.4184, "Hinterhaus", "offen", "efh", 1),
+          door("door-6", "Kollwitzstraße", "52", "10405", "Berlin", 52.5368, 13.4189, "", "nachlauf", "mfh", 5),
+          door("door-7", "Prenzlauer Allee", "33", "10405", "Berlin", 52.5349, 13.4198, "", "offen", "mfh", 6),
+          door("door-8", "Helmholtzstraße", "2", "10407", "Berlin", 52.5432, 13.4211, "Nicht klingeln vor 16 Uhr", "offen", "efh", 1),
         ],
       },
       {
@@ -67,9 +68,9 @@ function seed() {
         },
         members: [{ user_id: "jonas-berg", accepted_at: today }],
         doors: [
-          { id: "door-l1", street: "Karl-Liebknecht-Straße", house: "44", zip: "04275", city: "Leipzig", lat: 51.3221, lng: 12.3734, note: "", status: "offen" },
-          { id: "door-l2", street: "Kochstraße", house: "18", zip: "04275", city: "Leipzig", lat: 51.3194, lng: 12.3688, note: "Hof", status: "abschluss" },
-          { id: "door-l3", street: "Alfred-Kästner-Straße", house: "7", zip: "04275", city: "Leipzig", lat: 51.3178, lng: 12.3762, note: "", status: "offen" },
+          door("door-l1", "Karl-Liebknecht-Straße", "44", "04275", "Leipzig", 51.3221, 12.3734, "", "offen", "mfh", 4),
+          door("door-l2", "Kochstraße", "18", "04275", "Leipzig", 51.3194, 12.3688, "Hof", "abschluss", "efh", 1),
+          door("door-l3", "Alfred-Kästner-Straße", "7", "04275", "Leipzig", 51.3178, 12.3762, "", "offen", "efh", 1),
         ],
       },
     ],
@@ -79,14 +80,30 @@ function seed() {
       { id: "vis-3", door_id: "door-6", territory_id: "ter-berlin-prenzl", user_id: "demo-vt-keller", reason: "nicht_angetroffen", note: "Nur Kind zu Hause", street: "Kollwitzstraße", house: "52", zip: "10405", city: "Berlin", follow_up_on: plus(1), week_key: weekKey(), list_status: "offen" },
       { id: "vis-4", door_id: "door-l2", territory_id: "ter-leipzig-sued", user_id: "jonas-berg", reason: "abschluss", note: "Strom + Gas", street: "Kochstraße", house: "18", zip: "04275", city: "Leipzig", follow_up_on: null, week_key: weekKey(), list_status: "erledigt" },
     ],
+    plan: { active: false, mode: "huelle", points: [] },
   };
+}
+
+function door(id, street, house, zip, city, lat, lng, note, status, kind, units) {
+  return { id, street, house, zip, city, lat, lng, note, status, kind, units: makeUnits(kind, units).map((u, i) => ({ ...u, id: `${id}-u${i + 1}`, status: i === 0 ? status : "offen" })) };
+}
+
+function migrate(state) {
+  state.plan = state.plan || { active: false, mode: "huelle", points: [] };
+  for (const t of state.territories || []) {
+    for (const d of t.doors || []) {
+      if (!d.kind) d.kind = "efh";
+      if (!Array.isArray(d.units) || !d.units.length) d.units = makeUnits(d.kind, d.kind === "mfh" ? 4 : 1);
+    }
+  }
+  return state;
 }
 
 function load() {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = localStorage.getItem(KEY) || localStorage.getItem("gm.v1");
     if (!raw) return seed();
-    return JSON.parse(raw);
+    return migrate(JSON.parse(raw));
   } catch {
     return seed();
   }
@@ -96,6 +113,7 @@ let state = load();
 let selected = state.territories[0]?.id || null;
 let tab = "doors";
 let query = "";
+let planning = false;
 
 const map = L.map("map", { zoomControl: false }).setView([51.2, 10.4], 6);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -103,7 +121,22 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "&copy; OpenStreetMap",
 }).addTo(map);
 L.control.zoom({ position: "bottomright" }).addTo(map);
+const planLayer = L.layerGroup().addTo(map);
 const layers = L.layerGroup().addTo(map);
+map.on("click", (e) => {
+  if (!planning) return;
+  state.plan.points.push({
+    id: uid("pt"),
+    lat: e.latlng.lat,
+    lng: e.latlng.lng,
+    kind: "efh",
+    unitCount: 1,
+    street: "",
+    house: "",
+  });
+  save();
+  render();
+});
 
 function save() {
   localStorage.setItem(KEY, JSON.stringify(state));
@@ -118,19 +151,19 @@ function territory(id) {
   return state.territories.find((t) => t.id === id);
 }
 
-function openDoors(t) {
-  return t.doors.filter((d) => d.status === "offen" || d.status === "nachlauf").length;
+function openUnits(t) {
+  return t.doors.reduce((n, d) => n + (d.units || []).filter((u) => u.status === "offen" || u.status === "nachlauf").length, 0);
 }
 
 function renderStats() {
   const doors = state.territories.flatMap((t) => t.doors);
+  const units = doors.reduce((n, d) => n + (d.units?.length || 1), 0);
   const open = state.visits.filter((v) => v.list_status === "offen" && v.week_key === weekKey()).length;
-  const done = doors.filter((d) => d.status === "abschluss").length;
   document.getElementById("stats").innerHTML = [
     ["Gebiete", state.territories.length],
-    ["Offene Türen", doors.filter((d) => d.status === "offen" || d.status === "nachlauf").length],
+    ["Gebäude", doors.length],
+    ["Wohneinheiten", units],
     ["Woche", open],
-    ["Abschlüsse", done],
   ].map(([k, v]) => `<div class="stat"><b>${v}</b><span>${k}</span></div>`).join("");
 }
 
@@ -145,7 +178,7 @@ function renderList() {
     const pill = accepted ? `<span class="pill ok">${accepted} aktiv</span>` : `<span class="pill wait">offen</span>`;
     return `<button class="card ${t.id === selected ? "active" : ""}" data-id="${t.id}">
       <div class="row"><strong>${t.name}</strong>${pill}</div>
-      <small>${t.zip} ${t.city} · ${openDoors(t)} offen · ${t.doors.length} Türen</small>
+      <small>${t.zip} ${t.city} · ${openUnits(t)} WE offen · ${t.doors.length} Gebäude</small>
     </button>`;
   }).join("") || `<p class="empty">Kein Gebiet.</p>`;
 }
@@ -159,8 +192,9 @@ function color(status) {
 
 function renderMap() {
   layers.clearLayers();
+  planLayer.clearLayers();
   const t = territory(selected);
-  const focus = t ? [t] : state.territories;
+  const focus = planning ? [] : t ? [t] : state.territories;
   for (const area of focus) {
     if (area.polygon) {
       L.geoJSON({ type: "Feature", geometry: area.polygon, properties: { name: area.name } }, {
@@ -169,18 +203,38 @@ function renderMap() {
     }
     for (const d of area.doors) {
       const marker = L.circleMarker([d.lat, d.lng], {
-        radius: 7,
+        radius: d.kind === "mfh" ? 8 : 6,
         color: color(d.status),
         fillColor: color(d.status),
         fillOpacity: 0.9,
         weight: 1,
       });
-      marker.bindPopup(`<b>${d.street} ${d.house}</b><br>${d.zip} ${d.city}<br>${d.note || d.status}`);
+      marker.bindPopup(`<b>${d.street} ${d.house}</b><br>${d.kind === "mfh" ? "Mehrfamilien" : "Einfamilien"} · ${(d.units || []).length} WE`);
       marker.on("click", () => openVisit(area.id, d.id));
       marker.addTo(layers);
     }
   }
-  if (t) map.flyTo([t.center.lat, t.center.lng], 15, { duration: 0.6 });
+  const pts = state.plan.points;
+  if (planning && pts.length) {
+    pts.forEach((p, i) => {
+      L.circleMarker([p.lat, p.lng], {
+        radius: 7,
+        color: p.kind === "mfh" ? "#e6b35a" : "#7eb6ff",
+        fillOpacity: 0.95,
+      }).bindTooltip(String(i + 1), { permanent: true, direction: "center", className: "plan-tip" }).addTo(planLayer);
+    });
+    const ring = ringFrom(pts, state.plan.mode);
+    if (ring.length >= 2) {
+      const latlngs = ring.map((p) => [p.lat, p.lng]);
+      if (ring.length >= 3) latlngs.push(latlngs[0]);
+      L.polyline(latlngs, { color: "#3dd68c", weight: 2, dashArray: "6 4" }).addTo(planLayer);
+    }
+  }
+  if (!planning && t) map.flyTo([t.center.lat, t.center.lng], 15, { duration: 0.6 });
+  const bar = document.getElementById("plan-bar");
+  bar.classList.toggle("show", planning);
+  document.getElementById("plan-count").textContent = `${pts.length} Punkte`;
+  document.getElementById("plan-btn").classList.toggle("primary", planning);
 }
 
 function renderDetail() {
@@ -217,9 +271,34 @@ function renderDetail() {
     <button class="btn" id="export" type="button">GeoJSON exportieren</button>`;
     return;
   }
-  root.innerHTML = `${head}${t.doors.map((d) => `<div class="door">
+  if (tab === "plan") {
+    const pts = state.plan.points;
+    root.innerHTML = `<div class="meta">
+      <div><span>Planung</span><b>${pts.length} Punkte</b></div>
+      <div><span>Verbinden</span><b>${state.plan.mode === "huelle" ? "Hülle" : "Reihenfolge"}</b></div>
+    </div>
+    <div class="form">
+      <select id="plan-mode">
+        <option value="huelle" ${state.plan.mode === "huelle" ? "selected" : ""}>Automatisch: Punkte zur Hülle verbinden</option>
+        <option value="reihenfolge" ${state.plan.mode === "reihenfolge" ? "selected" : ""}>In Klickreihenfolge verbinden</option>
+      </select>
+    </div>
+    ${pts.map((p, i) => `<div class="door">
+      <i class="dot ${p.kind === "mfh" ? "nachlauf" : "offen"}"></i>
+      <div><b>Punkt ${i + 1}</b><br><small>${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</small></div>
+      <select data-kind="${p.id}">
+        <option value="efh" ${p.kind === "efh" ? "selected" : ""}>Einfamilie</option>
+        <option value="mfh" ${p.kind === "mfh" ? "selected" : ""}>Mehrfamilie</option>
+      </select>
+      <input data-we="${p.id}" type="number" min="1" max="40" value="${p.unitCount}" style="width:64px" ${p.kind === "efh" ? "disabled" : ""} />
+    </div>`).join("") || `<p class="empty">Gebiet planen, dann auf die Karte klicken. Ab 3 Punkten entsteht die Grenze.</p>`}
+    <button class="btn primary" id="plan-build-side" type="button">Gebiet erzeugen</button>`;
+    return;
+  }
+  root.innerHTML = `${head}<div class="meta"><div><span>Wohneinheiten</span><b>${t.doors.reduce((n, d) => n + (d.units?.length || 0), 0)}</b></div><div><span>Mehrfamilie</span><b>${t.doors.filter((d) => d.kind === "mfh").length}</b></div></div>
+  ${t.doors.map((d) => `<div class="door">
     <i class="dot ${d.status}"></i>
-    <div><b>${d.street} ${d.house}</b><br><small>${d.zip} ${d.city}${d.note ? " · " + d.note : ""}</small></div>
+    <div><b>${d.street} ${d.house}</b><br><small><span class="kind ${d.kind}">${d.kind === "mfh" ? "Mehrfamilie" : "Einfamilie"}</span> · ${(d.units || []).length} WE${d.note ? " · " + d.note : ""}</small></div>
     <button class="btn" data-visit="${d.id}" type="button">Besuch</button>
   </div>`).join("")}
   <button class="btn" id="export" type="button">GeoJSON exportieren</button>`;
@@ -310,6 +389,7 @@ document.getElementById("detail").onclick = (e) => {
     render();
   }
   if (e.target.id === "export") exportGeo();
+  if (e.target.id === "plan-build-side") buildFromPoints();
   if (e.target.id === "accept") {
     const t = territory(selected);
     let m = t.members.find((x) => x.user_id === state.me);
@@ -409,5 +489,94 @@ function exportGeo() {
   a.download = `${t.name}.geojson`;
   a.click();
 }
+
+function buildFromPoints() {
+  const pts = state.plan.points;
+  if (pts.length < 3) {
+    alert("Mindestens 3 Punkte setzen.");
+    return;
+  }
+  const ring = ringFrom(pts, state.plan.mode);
+  const polygon = toPolygon(ring);
+  if (!polygon) return;
+  const id = uid("ter");
+  const doors = pts.map((p, i) => door(
+    uid("door"),
+    p.street || "Gebäude",
+    p.house || String(i + 1),
+    "",
+    "",
+    p.lat,
+    p.lng,
+    "",
+    "offen",
+    p.kind,
+    p.kind === "mfh" ? p.unitCount : 1,
+  ));
+  const center = {
+    lat: pts.reduce((s, p) => s + p.lat, 0) / pts.length,
+    lng: pts.reduce((s, p) => s + p.lng, 0) / pts.length,
+  };
+  state.territories.unshift({
+    id,
+    name: `Gebiet ${new Date().toLocaleDateString("de-DE")}`,
+    zip: "",
+    city: "",
+    active: true,
+    center,
+    polygon,
+    members: [],
+    doors,
+  });
+  selected = id;
+  planning = false;
+  state.plan.points = [];
+  tab = "doors";
+  document.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("on", x.dataset.tab === "doors"));
+  save();
+  render();
+}
+
+document.getElementById("plan-btn").onclick = () => {
+  planning = !planning;
+  tab = "plan";
+  document.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("on", x.dataset.tab === "plan"));
+  render();
+};
+document.getElementById("plan-undo").onclick = () => {
+  state.plan.points.pop();
+  save();
+  render();
+};
+document.getElementById("plan-clear").onclick = () => {
+  state.plan.points = [];
+  save();
+  render();
+};
+document.getElementById("plan-build").onclick = buildFromPoints;
+document.getElementById("detail").addEventListener("change", (e) => {
+  if (e.target.id === "plan-mode") {
+    state.plan.mode = e.target.value;
+    save();
+    renderMap();
+    return;
+  }
+  const kind = e.target.closest("[data-kind]");
+  if (kind) {
+    const p = state.plan.points.find((x) => x.id === kind.dataset.kind);
+    if (p) {
+      p.kind = kind.value;
+      p.unitCount = p.kind === "efh" ? 1 : Math.max(2, Number(p.unitCount) || 4);
+    }
+    save();
+    render();
+  }
+  const we = e.target.closest("[data-we]");
+  if (we) {
+    const p = state.plan.points.find((x) => x.id === we.dataset.we);
+    if (p) p.unitCount = Math.max(1, Number(we.value) || 1);
+    save();
+  }
+});
 
 render();

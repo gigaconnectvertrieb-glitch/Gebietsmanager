@@ -19,6 +19,7 @@
       </div>
       <div class="stats" id="stats"></div>
       <div class="top-actions">
+        <button class="btn" id="plan-btn" type="button">Gebiet planen</button>
         <button class="btn" id="import-btn" type="button">Import</button>
         <button class="btn primary" id="new-btn" type="button">Gebiet anlegen</button>
       </div>
@@ -28,10 +29,19 @@
       <input class="search" id="q" placeholder="Suche Name, PLZ, Mitarbeiter" />
       <div id="list"></div>
     </aside>
-    <main id="map"></main>
+    <main class="map-wrap">
+      <div id="map"></div>
+      <div class="plan-bar" id="plan-bar">
+        <span id="plan-count">0 Punkte</span>
+        <button class="btn primary" id="plan-build" type="button">Punkte verbinden</button>
+        <button class="btn" id="plan-undo" type="button">Zurück</button>
+        <button class="btn ghost" id="plan-clear" type="button">Leeren</button>
+      </div>
+    </main>
     <section class="detail">
       <div class="tabs">
-        <button type="button" class="on" data-tab="doors">Türen</button>
+        <button type="button" data-tab="doors">Gebäude</button>
+        <button type="button" data-tab="plan">Plan</button>
         <button type="button" data-tab="week">Wochenliste</button>
         <button type="button" data-tab="team">Team</button>
       </div>
