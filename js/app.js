@@ -8,7 +8,7 @@ import {
   weekKey,
   doorsToGeoJson,
 } from "./field.js";
-import { makeUnits, ringFrom, toPolygon } from "./geo.js";
+import { makeUnits, ringFrom, territoryPolygon } from "./geo.js";
 
 const KEY = "gm.v2";
 const TEAM = [
@@ -114,6 +114,8 @@ let selected = state.territories[0]?.id || null;
 let tab = "doors";
 let query = "";
 let planning = false;
+let lastFocus = null;
+let pointerDown = null;
 
 const map = L.map("map", { zoomControl: false }).setView([51.2, 10.4], 6);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -123,12 +125,20 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 L.control.zoom({ position: "bottomright" }).addTo(map);
 const planLayer = L.layerGroup().addTo(map);
 const layers = L.layerGroup().addTo(map);
+map.on("mousedown", (e) => {
+  pointerDown = e.latlng;
+});
 map.on("click", (e) => {
   if (!planning) return;
+  const target = e.originalEvent?.target;
+  if (target && target.closest && target.closest(".leaflet-control, .plan-bar, button")) return;
+  if (pointerDown && e.latlng.distanceTo(pointerDown) > 12) return;
+  const dup = state.plan.points.some((p) => e.latlng.distanceTo(L.latLng(p.lat, p.lng)) < 6);
+  if (dup) return;
   state.plan.points.push({
     id: uid("pt"),
-    lat: e.latlng.lat,
-    lng: e.latlng.lng,
+    lat: Number(e.latlng.lat.toFixed(6)),
+    lng: Number(e.latlng.lng.toFixed(6)),
     kind: "efh",
     unitCount: 1,
     street: "",
@@ -224,22 +234,52 @@ function renderMap() {
       }).bindTooltip(String(i + 1), { permanent: true, direction: "center", className: "plan-tip" }).addTo(planLayer);
     });
     const ring = ringFrom(pts, state.plan.mode);
-    if (ring.length >= 2) {
-      const latlngs = ring.map((p) => [p.lat, p.lng]);
-      if (ring.length >= 3) latlngs.push(latlngs[0]);
-      L.polyline(latlngs, { color: "#3dd68c", weight: 2, dashArray: "6 4" }).addTo(planLayer);
+    const poly = territoryPolygon(pts, state.plan.mode);
+    if (poly) {
+      L.geoJSON(poly, { style: { color: "#3dd68c", weight: 2, fillColor: "#3dd68c", fillOpacity: 0.18 } }).addTo(planLayer);
+    } else if (ring.length >= 2) {
+      L.polyline(ring.map((p) => [p.lat, p.lng]), { color: "#3dd68c", weight: 2, dashArray: "6 4" }).addTo(planLayer);
     }
   }
-  if (!planning && t) map.flyTo([t.center.lat, t.center.lng], 15, { duration: 0.6 });
+  if (!planning && t && lastFocus !== t.id) {
+    lastFocus = t.id;
+    map.flyTo([t.center.lat, t.center.lng], Math.max(map.getZoom(), 14), { duration: 0.45 });
+  }
   const bar = document.getElementById("plan-bar");
   bar.classList.toggle("show", planning);
-  document.getElementById("plan-count").textContent = `${pts.length} Punkte`;
+  const ready = pts.length >= 3 || (pts.length >= 2 && state.plan.mode === "huelle");
+  document.getElementById("plan-count").textContent = ready ? `${pts.length} Punkte · Grenze bereit` : `${pts.length} Punkte`;
   document.getElementById("plan-btn").classList.toggle("primary", planning);
 }
 
 function renderDetail() {
   const root = document.getElementById("detail");
   const t = territory(selected);
+  if (tab === "plan") {
+    const pts = state.plan?.points || [];
+    root.innerHTML = `<div class="meta">
+      <div><span>Planung</span><b>${pts.length} Punkte</b></div>
+      <div><span>Verbinden</span><b>${state.plan.mode === "huelle" ? "Hülle" : "Reihenfolge"}</b></div>
+    </div>
+    <p class="empty">Klicks setzen Gebäude. Ziehen verschiebt die Karte und setzt keinen Punkt. Ab 2 Punkten auf einer Linie entsteht ein Streifen, ab 3 eine Hülle. 30 m Puffer, damit die Häuser im Gebiet liegen.</p>
+    <div class="form">
+      <select id="plan-mode">
+        <option value="huelle" ${state.plan.mode === "huelle" ? "selected" : ""}>Automatisch: Punkte zur Hülle verbinden</option>
+        <option value="reihenfolge" ${state.plan.mode === "reihenfolge" ? "selected" : ""}>In Klickreihenfolge, sonst Hülle</option>
+      </select>
+    </div>
+    ${pts.map((p, i) => `<div class="door">
+      <i class="dot ${p.kind === "mfh" ? "nachlauf" : "offen"}"></i>
+      <div><b>Punkt ${i + 1}</b><br><small>${Number(p.lat).toFixed(5)}, ${Number(p.lng).toFixed(5)}</small></div>
+      <select data-kind="${p.id}">
+        <option value="efh" ${p.kind === "efh" ? "selected" : ""}>Einfamilie</option>
+        <option value="mfh" ${p.kind === "mfh" ? "selected" : ""}>Mehrfamilie</option>
+      </select>
+      <input data-we="${p.id}" type="number" min="1" max="40" value="${p.unitCount || 1}" style="width:64px" ${p.kind === "efh" ? "disabled" : ""} />
+    </div>`).join("")}
+    <button class="btn primary" id="plan-build-side" type="button">Gebiet erzeugen</button>`;
+    return;
+  }
   if (!t) {
     root.innerHTML = `<p class="empty">Gebiet wählen oder anlegen.</p>`;
     return;
@@ -271,30 +311,7 @@ function renderDetail() {
     <button class="btn" id="export" type="button">GeoJSON exportieren</button>`;
     return;
   }
-  if (tab === "plan") {
-    const pts = state.plan.points;
-    root.innerHTML = `<div class="meta">
-      <div><span>Planung</span><b>${pts.length} Punkte</b></div>
-      <div><span>Verbinden</span><b>${state.plan.mode === "huelle" ? "Hülle" : "Reihenfolge"}</b></div>
-    </div>
-    <div class="form">
-      <select id="plan-mode">
-        <option value="huelle" ${state.plan.mode === "huelle" ? "selected" : ""}>Automatisch: Punkte zur Hülle verbinden</option>
-        <option value="reihenfolge" ${state.plan.mode === "reihenfolge" ? "selected" : ""}>In Klickreihenfolge verbinden</option>
-      </select>
-    </div>
-    ${pts.map((p, i) => `<div class="door">
-      <i class="dot ${p.kind === "mfh" ? "nachlauf" : "offen"}"></i>
-      <div><b>Punkt ${i + 1}</b><br><small>${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</small></div>
-      <select data-kind="${p.id}">
-        <option value="efh" ${p.kind === "efh" ? "selected" : ""}>Einfamilie</option>
-        <option value="mfh" ${p.kind === "mfh" ? "selected" : ""}>Mehrfamilie</option>
-      </select>
-      <input data-we="${p.id}" type="number" min="1" max="40" value="${p.unitCount}" style="width:64px" ${p.kind === "efh" ? "disabled" : ""} />
-    </div>`).join("") || `<p class="empty">Gebiet planen, dann auf die Karte klicken. Ab 3 Punkten entsteht die Grenze.</p>`}
-    <button class="btn primary" id="plan-build-side" type="button">Gebiet erzeugen</button>`;
-    return;
-  }
+  if (tab === "plan") return;
   root.innerHTML = `${head}<div class="meta"><div><span>Wohneinheiten</span><b>${t.doors.reduce((n, d) => n + (d.units?.length || 0), 0)}</b></div><div><span>Mehrfamilie</span><b>${t.doors.filter((d) => d.kind === "mfh").length}</b></div></div>
   ${t.doors.map((d) => `<div class="door">
     <i class="dot ${d.status}"></i>
@@ -492,13 +509,15 @@ function exportGeo() {
 
 function buildFromPoints() {
   const pts = state.plan.points;
-  if (pts.length < 3) {
-    alert("Mindestens 3 Punkte setzen.");
+  if (pts.length < 2) {
+    alert("Mindestens 2 Punkte setzen.");
     return;
   }
-  const ring = ringFrom(pts, state.plan.mode);
-  const polygon = toPolygon(ring);
-  if (!polygon) return;
+  const polygon = territoryPolygon(pts, state.plan.mode, 30);
+  if (!polygon) {
+    alert("Aus diesen Punkten lässt sich kein Gebiet bauen.");
+    return;
+  }
   const id = uid("ter");
   const doors = pts.map((p, i) => door(
     uid("door"),
@@ -510,12 +529,12 @@ function buildFromPoints() {
     p.lng,
     "",
     "offen",
-    p.kind,
+    p.kind === "mfh" ? "mfh" : "efh",
     p.kind === "mfh" ? p.unitCount : 1,
   ));
   const center = {
-    lat: pts.reduce((s, p) => s + p.lat, 0) / pts.length,
-    lng: pts.reduce((s, p) => s + p.lng, 0) / pts.length,
+    lat: pts.reduce((s, p) => s + Number(p.lat), 0) / pts.length,
+    lng: pts.reduce((s, p) => s + Number(p.lng), 0) / pts.length,
   };
   state.territories.unshift({
     id,
@@ -529,18 +548,22 @@ function buildFromPoints() {
     doors,
   });
   selected = id;
+  lastFocus = id;
   planning = false;
   state.plan.points = [];
   tab = "doors";
   document.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("on", x.dataset.tab === "doors"));
   save();
   render();
+  const ring = polygon.coordinates[0].map(([lng, lat]) => [lat, lng]);
+  map.fitBounds(ring, { padding: [24, 24], maxZoom: 17 });
 }
 
 document.getElementById("plan-btn").onclick = () => {
   planning = !planning;
-  tab = "plan";
-  document.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("on", x.dataset.tab === "plan"));
+  tab = planning ? "plan" : "doors";
+  document.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("on", x.dataset.tab === tab));
+  if (planning && map.getZoom() < 14) map.setView(map.getCenter(), 14);
   render();
 };
 document.getElementById("plan-undo").onclick = () => {

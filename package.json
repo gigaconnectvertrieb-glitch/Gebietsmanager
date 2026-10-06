@@ -3,7 +3,9 @@
   "private": true,
   "version": "1.0.0",
   "description": "Gebietsmanager für E1 Direktvertrieb — Karte, Türen, Wochenliste",
+  "type": "module",
   "scripts": {
-    "start": "npx --yes serve ."
+    "start": "npx --yes serve .",
+    "test": "node js/geo.test.mjs"
   }
 }
