@@ -1,0 +1,9 @@
+{
+  "name": "gebietsmanager",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Gebietsmanager für E1 Direktvertrieb — Karte, Türen, Wochenliste",
+  "scripts": {
+    "start": "npx --yes serve ."
+  }
+}

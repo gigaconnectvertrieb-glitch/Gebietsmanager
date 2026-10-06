@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gebietsmanager · E1 Direktvertrieb</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="top">
+      <div class="brand">
+        <div class="mark">E1</div>
+        <div>
+          <h1>Gebietsmanager</h1>
+          <p>Feld · Gebiete · Wochenliste</p>
+        </div>
+      </div>
+      <div class="stats" id="stats"></div>
+      <div class="top-actions">
+        <button class="btn" id="import-btn" type="button">Import</button>
+        <button class="btn primary" id="new-btn" type="button">Gebiet anlegen</button>
+      </div>
+    </header>
+    <aside class="side">
+      <h2>Gebiete</h2>
+      <input class="search" id="q" placeholder="Suche Name, PLZ, Mitarbeiter" />
+      <div id="list"></div>
+    </aside>
+    <main id="map"></main>
+    <section class="detail">
+      <div class="tabs">
+        <button type="button" class="on" data-tab="doors">Türen</button>
+        <button type="button" data-tab="week">Wochenliste</button>
+        <button type="button" data-tab="team">Team</button>
+      </div>
+      <div class="detail-body" id="detail"></div>
+    </section>
+  </div>
+
+  <div class="modal" id="modal">
+    <form class="dialog" id="dialog"></form>
+  </div>
+  <input type="file" id="file" accept=".geojson,.json,.csv,application/json,text/csv" hidden />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
