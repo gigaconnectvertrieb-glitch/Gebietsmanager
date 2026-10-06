@@ -88,12 +88,23 @@ button { cursor: pointer; }
 .pill.wait { color: var(--blue); border-color: #2d4d78; }
 
 .plan-bar {
-  position: absolute; z-index: 500; left: 50%; bottom: 16px; transform: translateX(-50%);
-  display: none; gap: 8px; align-items: center;
+  position: absolute; z-index: 500; left: 12px; right: 12px; bottom: 12px;
+  display: none; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center;
   background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px;
   box-shadow: var(--shadow);
 }
 .plan-bar.show { display: flex; }
+.crosshair {
+  display: none; position: absolute; z-index: 450; left: 50%; top: 46%;
+  width: 22px; height: 22px; margin: -11px 0 0 -11px; pointer-events: none;
+  border: 2px solid #3dd68c; border-radius: 50%; box-shadow: 0 0 0 2px rgba(0,0,0,.45);
+}
+.crosshair.show { display: block; }
+.crosshair:before, .crosshair:after {
+  content: ""; position: absolute; background: #3dd68c;
+}
+.crosshair:before { left: 9px; top: -6px; width: 2px; height: 32px; }
+.crosshair:after { top: 9px; left: -6px; height: 2px; width: 32px; }
 .kind { font-size: 11px; border-radius: 99px; padding: 2px 7px; }
 .kind.efh { color: #9fd7ff; background: #163044; }
 .kind.mfh { color: #f0d59a; background: #3a3018; }

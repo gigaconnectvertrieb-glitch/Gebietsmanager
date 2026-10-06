@@ -100,14 +100,19 @@ export function pointInRing(lat, lng, ring) {
 export async function findInPolygon(polygon) {
   const ring = polygon?.coordinates?.[0];
   if (!ring || ring.length < 4) throw new Error("Gebiet ist noch keine Fläche.");
-  const open = ring.slice(0, -1);
-  const poly = open.map(([lng, lat]) => `${lat} ${lng}`).join(" ");
-  const query = `[out:json][timeout:40];
+  const lats = ring.map((p) => p[1]);
+  const lngs = ring.map((p) => p[0]);
+  const south = Math.min(...lats);
+  const north = Math.max(...lats);
+  const west = Math.min(...lngs);
+  const east = Math.max(...lngs);
+  if ((north - south) * (east - west) > 0.08) throw new Error("Gebiet ist zu groß. Näher zoomen und nur einen Block eingrenzen.");
+  const query = `[out:json][timeout:25];
 (
-  way["building"](poly:"${poly}");
-  node["building"](poly:"${poly}");
+  way["building"](${south},${west},${north},${east});
+  node["building"](${south},${west},${north},${east});
 );
-out center tags 400;`;
+out center tags;`;
   const data = await overpass(query);
   const rows = [];
   for (const el of data.elements || []) {
@@ -131,7 +136,7 @@ out center tags 400;`;
     });
   }
   const ordered = orderBuildings(rows).slice(0, 400);
-  if (!ordered.length) throw new Error("Im eingegrenzten Gebiet keine Wohngebäude mit Straße gefunden.");
+  if (!ordered.length) throw new Error("In der Fläche keine Wohngebäude. Fadenkreuz auf die Straße, drei Ecken um den Block, dann nochmal auslesen.");
   return { buildings: ordered, truncated: rows.length > ordered.length };
 }
 export async function findByPlz(plz, kind) {

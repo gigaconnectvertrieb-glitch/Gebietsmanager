@@ -125,20 +125,13 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 L.control.zoom({ position: "bottomright" }).addTo(map);
 const planLayer = L.layerGroup().addTo(map);
 const layers = L.layerGroup().addTo(map);
-map.on("mousedown", (e) => {
-  pointerDown = e.latlng;
-});
-map.on("click", (e) => {
-  if (!planning) return;
-  const target = e.originalEvent?.target;
-  if (target && target.closest && target.closest(".leaflet-control, .plan-bar, button")) return;
-  if (pointerDown && e.latlng.distanceTo(pointerDown) > 12) return;
-  const dup = state.plan.points.some((p) => e.latlng.distanceTo(L.latLng(p.lat, p.lng)) < 6);
+function addPlanPoint(latlng) {
+  const dup = state.plan.points.some((p) => latlng.distanceTo(L.latLng(p.lat, p.lng)) < 6);
   if (dup) return;
   state.plan.points.push({
     id: uid("pt"),
-    lat: Number(e.latlng.lat.toFixed(6)),
-    lng: Number(e.latlng.lng.toFixed(6)),
+    lat: Number(latlng.lat.toFixed(6)),
+    lng: Number(latlng.lng.toFixed(6)),
     kind: "efh",
     unitCount: 1,
     street: "",
@@ -146,7 +139,16 @@ map.on("click", (e) => {
   });
   save();
   render();
-});
+}
+document.getElementById("plan-add").onclick = () => {
+  if (!planning) return;
+  if (map.getZoom() < 16) {
+    document.getElementById("plan-count").textContent = "Näher zoomen, sonst trifft der Punkt nicht die Straße";
+    map.setZoom(16);
+    return;
+  }
+  addPlanPoint(map.getCenter());
+};
 
 function save() {
   localStorage.setItem(KEY, JSON.stringify(state));
@@ -247,7 +249,8 @@ function renderMap() {
   }
   const bar = document.getElementById("plan-bar");
   bar.classList.toggle("show", planning);
-  const ready = pts.length >= 3 || (pts.length >= 2 && state.plan.mode === "huelle");
+  document.getElementById("crosshair").classList.toggle("show", planning);
+  const ready = pts.length >= 3;
   document.getElementById("plan-count").textContent = ready ? `${pts.length} Punkte · Grenze bereit` : `${pts.length} Punkte`;
   document.getElementById("plan-btn").classList.toggle("primary", planning);
 }
@@ -596,7 +599,12 @@ document.getElementById("plan-btn").onclick = () => {
   planning = !planning;
   tab = planning ? "plan" : "doors";
   document.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("on", x.dataset.tab === tab));
-  if (planning && map.getZoom() < 14) map.setView(map.getCenter(), 14);
+  if (planning && map.getZoom() < 16) map.setView(map.getCenter(), 16);
+  if (planning && navigator.geolocation && !state.plan.points.length) {
+    navigator.geolocation.getCurrentPosition((pos) => {
+      if (planning) map.setView([pos.coords.latitude, pos.coords.longitude], 17);
+    });
+  }
   render();
 };
 document.getElementById("plan-undo").onclick = () => {
