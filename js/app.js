@@ -8,6 +8,7 @@ import {
   weekKey,
   doorsToGeoJson,
 } from "./field.js";
+import { makeUnits, ringFrom, territoryPolygon } from "./geo.js";
 import { findByPlz, findInPolygon } from "./plz.js";
 
 const KEY = "gm.v2";
