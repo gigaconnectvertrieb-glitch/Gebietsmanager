@@ -84,6 +84,56 @@ async function overpass(query) {
   throw new Error(last);
 }
 
+export function pointInRing(lat, lng, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const yi = ring[i][1];
+    const xi = ring[i][0];
+    const yj = ring[j][1];
+    const xj = ring[j][0];
+    const hit = yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi || 1e-12) + xi;
+    if (hit) inside = !inside;
+  }
+  return inside;
+}
+
+export async function findInPolygon(polygon) {
+  const ring = polygon?.coordinates?.[0];
+  if (!ring || ring.length < 4) throw new Error("Gebiet ist noch keine Fläche.");
+  const open = ring.slice(0, -1);
+  const poly = open.map(([lng, lat]) => `${lat} ${lng}`).join(" ");
+  const query = `[out:json][timeout:40];
+(
+  way["building"](poly:"${poly}");
+  node["building"](poly:"${poly}");
+);
+out center tags 400;`;
+  const data = await overpass(query);
+  const rows = [];
+  for (const el of data.elements || []) {
+    const tags = el.tags || {};
+    const kind = classifyBuilding(tags);
+    if (!kind) continue;
+    const lat = el.lat || el.center?.lat;
+    const lng = el.lon || el.center?.lon;
+    if (!lat || !lng || !pointInRing(lat, lng, ring)) continue;
+    const flats = Number(tags["building:flats"] || tags["addr:flats"] || 0);
+    const levels = Number(tags["building:levels"] || 0);
+    rows.push({
+      street: tags["addr:street"] || "",
+      house: tags["addr:housenumber"] || "",
+      zip: tags["addr:postcode"] || "",
+      city: tags["addr:city"] || tags["addr:suburb"] || "",
+      lat,
+      lng,
+      kind,
+      unitCount: kind === "mfh" ? Math.min(40, Math.max(2, flats || (levels > 1 ? levels * 2 : 4))) : 1,
+    });
+  }
+  const ordered = orderBuildings(rows).slice(0, 400);
+  if (!ordered.length) throw new Error("Im eingegrenzten Gebiet keine Wohngebäude mit Straße gefunden.");
+  return { buildings: ordered, truncated: rows.length > ordered.length };
+}
 export async function findByPlz(plz, kind) {
   const zip = String(plz || "").trim();
   if (!/^\d{5}$/.test(zip)) throw new Error("PLZ muss 5 Ziffern haben.");

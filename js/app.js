@@ -8,7 +8,7 @@ import {
   weekKey,
   doorsToGeoJson,
 } from "./field.js";
-import { findByPlz } from "./plz.js";
+import { findByPlz, findInPolygon } from "./plz.js";
 
 const KEY = "gm.v2";
 const TEAM = [
@@ -261,7 +261,7 @@ function renderDetail() {
       <div><span>Planung</span><b>${pts.length} Punkte</b></div>
       <div><span>Verbinden</span><b>${state.plan.mode === "huelle" ? "Hülle" : "Reihenfolge"}</b></div>
     </div>
-    <p class="empty">Klicks setzen Gebäude. Ziehen verschiebt die Karte und setzt keinen Punkt. Ab 2 Punkten auf einer Linie entsteht ein Streifen, ab 3 eine Hülle. 30 m Puffer, damit die Häuser im Gebiet liegen.</p>
+    <p class="empty">Punkte setzen, sie werden zur Grenze verbunden. Danach liest das System Straße, Hausnummer, Einfamilie oder Mehrfamilie und die Wohneinheiten in dieser Fläche.</p>
     <div class="form">
       <select id="plan-mode">
         <option value="huelle" ${state.plan.mode === "huelle" ? "selected" : ""}>Automatisch: Punkte zur Hülle verbinden</option>
@@ -277,7 +277,7 @@ function renderDetail() {
       </select>
       <input data-we="${p.id}" type="number" min="1" max="40" value="${p.unitCount || 1}" style="width:64px" ${p.kind === "efh" ? "disabled" : ""} />
     </div>`).join("")}
-    <button class="btn primary" id="plan-build-side" type="button">Gebiet erzeugen</button>`;
+    <button class="btn primary" id="plan-build-side" type="button">Gebiet auslesen</button>`;
     return;
   }
   if (!t) {
@@ -529,56 +529,67 @@ function exportGeo() {
   a.click();
 }
 
-function buildFromPoints() {
+async function buildFromPoints() {
   const pts = state.plan.points;
-  if (pts.length < 2) {
-    alert("Mindestens 2 Punkte setzen.");
+  if (pts.length < 3) {
+    alert("Mindestens 3 Punkte setzen, damit das Gebiet geschlossen ist.");
     return;
   }
-  const polygon = territoryPolygon(pts, state.plan.mode, 30);
+  const polygon = territoryPolygon(pts, state.plan.mode, 20);
   if (!polygon) {
     alert("Aus diesen Punkten lässt sich kein Gebiet bauen.");
     return;
   }
-  const id = uid("ter");
-  const doors = pts.map((p, i) => door(
-    uid("door"),
-    p.street || "Gebäude",
-    p.house || String(i + 1),
-    "",
-    "",
-    p.lat,
-    p.lng,
-    "",
-    "offen",
-    p.kind === "mfh" ? "mfh" : "efh",
-    p.kind === "mfh" ? p.unitCount : 1,
-  ));
-  const center = {
-    lat: pts.reduce((s, p) => s + Number(p.lat), 0) / pts.length,
-    lng: pts.reduce((s, p) => s + Number(p.lng), 0) / pts.length,
-  };
-  state.territories.unshift({
-    id,
-    name: `Gebiet ${new Date().toLocaleDateString("de-DE")}`,
-    zip: "",
-    city: "",
-    active: true,
-    center,
-    polygon,
-    members: [],
-    doors,
-  });
-  selected = id;
-  lastFocus = id;
-  planning = false;
-  state.plan.points = [];
-  tab = "doors";
-  document.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("on", x.dataset.tab === "doors"));
-  save();
-  render();
-  const ring = polygon.coordinates[0].map(([lng, lat]) => [lat, lng]);
-  map.fitBounds(ring, { padding: [24, 24], maxZoom: 17 });
+  const status = document.getElementById("plan-count");
+  status.textContent = "Grenze steht, Straßen und Haustypen werden gelesen …";
+  document.getElementById("plan-build").disabled = true;
+  try {
+    const found = await findInPolygon(polygon);
+    const id = uid("ter");
+    const doors = found.buildings.map((p) => door(
+      uid("door"),
+      p.street || "Ohne Straße",
+      p.house || "?",
+      p.zip,
+      p.city,
+      p.lat,
+      p.lng,
+      `Lauf ${p.order} · ${p.unitCount} WE`,
+      "offen",
+      p.kind,
+      p.unitCount,
+    ));
+    const center = {
+      lat: doors.reduce((s, d) => s + d.lat, 0) / doors.length,
+      lng: doors.reduce((s, d) => s + d.lng, 0) / doors.length,
+    };
+    const efh = doors.filter((d) => d.kind === "efh").length;
+    state.territories.unshift({
+      id,
+      name: `Gebiet ${new Date().toLocaleDateString("de-DE")} · ${doors.length} Häuser`,
+      zip: doors.find((d) => d.zip)?.zip || "",
+      city: doors.find((d) => d.city)?.city || "",
+      active: true,
+      center,
+      polygon,
+      members: [],
+      doors,
+    });
+    selected = id;
+    lastFocus = id;
+    planning = false;
+    state.plan.points = [];
+    tab = "doors";
+    document.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("on", x.dataset.tab === "doors"));
+    save();
+    render();
+    map.fitBounds(polygon.coordinates[0].map(([lng, lat]) => [lat, lng]), { padding: [24, 24], maxZoom: 17 });
+    document.getElementById("plz-status").textContent = `${doors.length} Gebäude im Gebiet: ${efh} Einfamilie, ${doors.length - efh} Mehrfamilie, geordnet nach Straße und Hausnummer.`;
+  } catch (err) {
+    status.textContent = err.message || "Auslesen fehlgeschlagen";
+  } finally {
+    document.getElementById("plan-build").disabled = false;
+  }
 }
 
 document.getElementById("plan-btn").onclick = () => {

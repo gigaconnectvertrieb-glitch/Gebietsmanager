@@ -16,7 +16,7 @@ Daten liegen im Browser (`localStorage`, Schlüssel `gm.v1`). Demo-Gebiet: Berli
 
 ## Funktionen
 
-- PLZ und Typ (Einfamilie oder Mehrfamilie) eingeben. Gebäude kommen aus OpenStreetMap, geordnet nach Straße und Hausnummer, Gebiet wird aus den Punkten erzeugt.
+- Punkte auf der Karte setzen. Die Verbindung ist die Gebietsgrenze. Darin werden Straße, Hausnummer, Einfamilie/Mehrfamilie und Wohneinheiten aus OpenStreetMap gelesen und nach Straße sortiert.
 - Gebäude als Einfamilienhaus (1 Wohneinheit) oder Mehrfamilienhaus (mehrere Wohneinheiten)
 - Gebiet anlegen, GeoJSON oder CSV importieren (`street,house,zip,city,lat,lng`)
 - Mitarbeiter zuweisen und Gebiet annehmen
