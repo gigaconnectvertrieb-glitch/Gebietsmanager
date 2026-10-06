@@ -14,17 +14,27 @@
         <div class="mark">E1</div>
         <div>
           <h1>Gebietsmanager</h1>
-          <p>Feld · Gebiete · Wochenliste</p>
+          <p>PLZ · Einfamilie / Mehrfamilie</p>
         </div>
       </div>
       <div class="stats" id="stats"></div>
       <div class="top-actions">
         <button class="btn" id="plan-btn" type="button">Gebiet planen</button>
         <button class="btn" id="import-btn" type="button">Import</button>
-        <button class="btn primary" id="new-btn" type="button">Gebiet anlegen</button>
+        <button class="btn primary" id="new-btn" type="button">PLZ suchen</button>
       </div>
     </header>
     <aside class="side">
+      <h2>PLZ</h2>
+      <form class="form plz-form" id="plz-form">
+        <input name="plz" inputmode="numeric" maxlength="5" placeholder="PLZ, z. B. 10435" required />
+        <select name="kind">
+          <option value="efh">Einfamilie</option>
+          <option value="mfh">Mehrfamilie</option>
+        </select>
+        <button class="btn primary" type="submit">Geordnet suchen</button>
+        <p class="empty" id="plz-status">Nur PLZ und Typ. Gebäude kommen nach Straße und Hausnummer.</p>
+      </form>
       <h2>Gebiete</h2>
       <input class="search" id="q" placeholder="Suche Name, PLZ, Mitarbeiter" />
       <div id="list"></div>

@@ -16,7 +16,7 @@ Daten liegen im Browser (`localStorage`, Schlüssel `gm.v1`). Demo-Gebiet: Berli
 
 ## Funktionen
 
-- Gebiet planen: Punkte auf der Karte setzen, automatisch per konvexer Hülle verbinden (oder in Klickreihenfolge)
+- PLZ und Typ (Einfamilie oder Mehrfamilie) eingeben. Gebäude kommen aus OpenStreetMap, geordnet nach Straße und Hausnummer, Gebiet wird aus den Punkten erzeugt.
 - Gebäude als Einfamilienhaus (1 Wohneinheit) oder Mehrfamilienhaus (mehrere Wohneinheiten)
 - Gebiet anlegen, GeoJSON oder CSV importieren (`street,house,zip,city,lat,lng`)
 - Mitarbeiter zuweisen und Gebiet annehmen

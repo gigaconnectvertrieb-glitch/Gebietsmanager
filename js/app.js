@@ -8,7 +8,7 @@ import {
   weekKey,
   doorsToGeoJson,
 } from "./field.js";
-import { makeUnits, ringFrom, territoryPolygon } from "./geo.js";
+import { findByPlz } from "./plz.js";
 
 const KEY = "gm.v2";
 const TEAM = [
@@ -429,42 +429,64 @@ document.getElementById("detail").onsubmit = (e) => {
   render();
 };
 
-document.getElementById("new-btn").onclick = () => {
-  openModal(`<h3>Gebiet anlegen</h3>
-    <div class="form">
-      <input name="name" placeholder="Name, z. B. Köln Ehrenfeld" required />
-      <input name="zip" placeholder="PLZ" required />
-      <input name="city" placeholder="Ort" required />
-      <input name="lat" placeholder="Breite" value="50.95" required />
-      <input name="lng" placeholder="Länge" value="6.92" required />
-      <button class="btn primary" type="submit">Speichern</button>
-      <button class="btn ghost" type="button" id="cancel">Abbrechen</button>
-    </div>`);
-  document.getElementById("dialog").onsubmit = (e) => {
-    e.preventDefault();
-    const f = Object.fromEntries(new FormData(e.target));
-    const lat = Number(f.lat);
-    const lng = Number(f.lng);
-    const id = uid("ter");
-    state.territories.unshift({
-      id,
-      name: f.name,
-      zip: f.zip,
-      city: f.city,
-      active: true,
-      center: { lat, lng },
-      polygon: {
-        type: "Polygon",
-        coordinates: [[[lng - 0.012, lat - 0.008], [lng + 0.012, lat - 0.008], [lng + 0.012, lat + 0.008], [lng - 0.012, lat + 0.008], [lng - 0.012, lat - 0.008]]],
-      },
-      members: [],
-      doors: [],
-    });
-    selected = id;
-    save();
-    closeModal();
-    render();
+document.getElementById("new-btn").onclick = () => document.querySelector("#plz-form [name=plz]").focus();
+
+async function searchPlz(plz, kind) {
+  const status = document.getElementById("plz-status");
+  status.textContent = `Suche ${kind === "mfh" ? "Mehrfamilie" : "Einfamilie"} in ${plz} …`;
+  const found = await findByPlz(plz, kind);
+  const polygon = territoryPolygon(found.buildings, "huelle", 40);
+  const id = uid("ter");
+  const doors = found.buildings.map((p) => door(
+    uid("door"),
+    p.street || "Gebäude",
+    p.house || String(p.order),
+    p.zip,
+    p.city,
+    p.lat,
+    p.lng,
+    `Lauf ${p.order}`,
+    "offen",
+    p.kind,
+    p.unitCount,
+  ));
+  const center = {
+    lat: doors.reduce((s, d) => s + d.lat, 0) / doors.length,
+    lng: doors.reduce((s, d) => s + d.lng, 0) / doors.length,
   };
+  state.territories.unshift({
+    id,
+    name: `${found.zip} ${found.city} · ${kind === "mfh" ? "Mehrfamilie" : "Einfamilie"}`,
+    zip: found.zip,
+    city: found.city,
+    active: true,
+    center,
+    polygon,
+    members: [],
+    doors,
+  });
+  selected = id;
+  lastFocus = id;
+  tab = "doors";
+  document.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("on", x.dataset.tab === "doors"));
+  save();
+  render();
+  if (polygon) map.fitBounds(polygon.coordinates[0].map(([lng, lat]) => [lat, lng]), { padding: [24, 24], maxZoom: 16 });
+  status.textContent = `${doors.length} Gebäude, geordnet nach Straße und Hausnummer${found.truncated ? " (erste 300)" : ""}.`;
+}
+
+document.getElementById("plz-form").onsubmit = async (e) => {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  const button = e.target.querySelector("button");
+  button.disabled = true;
+  try {
+    await searchPlz(String(f.get("plz")), String(f.get("kind")));
+  } catch (err) {
+    document.getElementById("plz-status").textContent = err.message || "Suche fehlgeschlagen";
+  } finally {
+    button.disabled = false;
+  }
 };
 
 document.getElementById("import-btn").onclick = () => document.getElementById("file").click();
